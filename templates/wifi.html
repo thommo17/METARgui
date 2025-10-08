@@ -30,12 +30,22 @@
   <form method="post">
     <div id="networks">
       {% for ssid, psk in networks %}
-      <div class="row mb-2">
-        <div class="col"><input class="form-control" name="ssid_{{ loop.index0 }}" value="{{ ssid }}" placeholder="SSID"></div>
-        <div class="col"><input class="form-control" name="psk_{{ loop.index0 }}" value="{{ psk }}" placeholder="Password" type="password"></div>
-        <div class="col-auto"><button type="button" class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div>
-      </div>
+        <div class="row mb-2">
+          <div class="col">
+            <input class="form-control" name="ssid_{{ loop.index0 }}" value="{{ ssid }}" {% if ssid == backup[0] %}readonly{% endif %}>
+          </div>
+          <div class="col">
+            <input class="form-control" name="psk_{{ loop.index0 }}" value="{{ psk }}" type="password" {% if ssid == backup[0] %}readonly{% endif %}>
+          </div>
+          <div class="col-auto">
+            {% if ssid != backup[0] %}
+            <button type="button" class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">X</button>
+            {% endif %}
+          </div>
+        </div>
       {% endfor %}
+
+
     </div>
 
     <button type="button" class="btn btn-secondary" onclick="addNetwork()">+ Add Network</button>

@@ -1,7 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
 import os
 import subprocess
 import re
+import configparser
+import io
+import shutil
 
 app = Flask(__name__)
 app.secret_key = "changeme123"  # ⚠️ change this to something secure
@@ -13,6 +16,9 @@ WPA_CONF = "/etc/wpa_supplicant/wpa_supplicant.conf"
 # Login credentials (hardcoded for now)
 USERNAME = "pi"
 PASSWORD = "raspberry"
+
+# Backup Wifi network
+BACKUP_NETWORK = ("rpi_metar_au", "0431101465")
 
 # ----------------- Helpers -----------------
 def load_conf(path):
@@ -48,55 +54,55 @@ def dashboard():
     return render_template("dashboard.html")
 
 # ============================
-#   METAR CONFIG (IMPROVED)
+#   METAR CONFIG
 # ============================
-@app.route("/metar", methods=["GET", "POST"])
-def metar():
+@app.route("/config", methods=["GET", "POST"])
+def config():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
+    config = configparser.ConfigParser(strict=False, delimiters=("="))
+    config.optionxform = str  # preserve case
+    config.read(METAR_CONF)
+
+    # Handle save
     if request.method == "POST":
-        # Collect airports
-        airports = []
+        # Update airports
+        airports = {}
         i = 0
         while True:
-            code = request.form.get(f"airport_{i}")
-            led = request.form.get(f"led_{i}")
-            if code is None:
+            code = request.form.get(f"airport_code_{i}")
+            led = request.form.get(f"airport_led_{i}")
+            if not code:
                 break
-            if code.strip():
-                airports.append(f"{code.strip()}={led.strip()}")
+            if led and led.isdigit():
+                airports[code.strip()] = led.strip()
             i += 1
 
-        # Collect other settings
-        others = request.form.get("other_settings", "").strip().splitlines()
+        config["airports"] = airports
 
+        # Update other sections
+        for section in config.sections():
+            if section != "airports":
+                for key in config[section]:
+                    form_key = f"{section}_{key}"
+                    if form_key in request.form:
+                        config[section][key] = request.form[form_key]
+
+        # Save file
         with open(METAR_CONF, "w") as f:
-            for a in airports:
-                f.write(a + "\n")
-            f.write("\n")
-            for line in others:
-                f.write(line + "\n")
+            config.write(f)
 
-        return redirect(url_for("metar"))
+        return redirect(url_for("config"))
 
-    # ---- Parse config file ----
-    airports = []
-    others = []
-    if os.path.exists(METAR_CONF):
-        with open(METAR_CONF) as f:
-            for line in f:
-                line = line.strip()
-                if re.match(r"^[A-Z]{4}=\d+$", line):
-                    code, led = line.split("=")
-                    airports.append((code, led))
-                elif line:
-                    others.append(line)
+    airports = dict(config.items("airports")) if "airports" in config else {}
+    settings = dict(config.items("settings")) if "settings" in config else {}
+    legend = dict(config.items("legend")) if "legend" in config else {}
 
-    return render_template("metar.html", airports=airports, others="\n".join(others))
+    return render_template("metar.html", airports=airports, settings=settings, legend=legend)
 
 # ============================
-#   WIFI CONFIG (IMPROVED)
+#   WIFI CONFIG
 # ============================
 @app.route("/wifi", methods=["GET", "POST"])
 def wifi():
@@ -109,8 +115,11 @@ def wifi():
         for i in range(len(request.form)//2):
             ssid = request.form.get(f"ssid_{i}")
             psk = request.form.get(f"psk_{i}")
-            if ssid:
+            if ssid and ssid != BACKUP_NETWORK[0]:
                 networks.append((ssid, psk))
+
+        # Always include the backup network
+        networks.append(BACKUP_NETWORK)
 
         with open(WPA_CONF, "w") as f:
             f.write('ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n')
@@ -149,8 +158,28 @@ def wifi():
                 psk = psk_match.group(1) if psk_match else ""
                 networks.append((ssid, psk))
 
-    return render_template("wifi.html", networks=networks, scanned=scanned)
+    # Ensure backup network is always present
+    if BACKUP_NETWORK not in networks:
+        networks.append(BACKUP_NETWORK)
 
+    return render_template("wifi.html", networks=networks, scanned=scanned, backup=BACKUP_NETWORK)
+
+@app.route("/config/download")
+def download_config():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    return send_file(METAR_CONF, as_attachment=True, download_name="rpi_metar.conf")
+
+@app.route("/config/upload", methods=["POST"])
+def upload_config():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    file = request.files.get("file")
+    if file and file.filename.endswith(".conf"):
+        file.save(METAR_CONF)
+    if os.path.exists(METAR_CONF):
+        shutil.copy(METAR_CONF, METAR_CONF + ".bak")
+    return redirect(url_for("config"))
 @app.route("/restart_metar")
 def restart_metar():
     if not session.get("logged_in"):
