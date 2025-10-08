@@ -98,7 +98,58 @@ def metar():
 # ============================
 #   WIFI CONFIG (IMPROVED)
 # ============================
+@app.route("/wifi", methods=["GET", "POST"])
+def wifi():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
 
+    # ---- Save Networks ----
+    if request.method == "POST" and "save" in request.form:
+        networks = []
+        for i in range(len(request.form)//2):
+            ssid = request.form.get(f"ssid_{i}")
+            psk = request.form.get(f"psk_{i}")
+            if ssid:
+                networks.append((ssid, psk))
+
+        with open(WPA_CONF, "w") as f:
+            f.write('ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n')
+            f.write('update_config=1\n')
+            f.write('country=AU\n\n')
+            for ssid, psk in networks:
+                f.write("network={\n")
+                f.write(f'    ssid="{ssid}"\n')
+                if psk:
+                    f.write(f'    psk="{psk}"\n')
+                f.write("}\n\n")
+        return redirect(url_for("wifi"))
+
+    # ---- Scan Wi-Fi Networks ----
+    scanned = []
+    if request.method == "POST" and "scan" in request.form:
+        try:
+            result = subprocess.run(
+                ["sudo", "iwlist", "wlan0", "scan"],
+                capture_output=True, text=True, check=True
+            )
+            scanned = sorted(set(re.findall(r'ESSID:"([^"]+)"', result.stdout)))
+        except subprocess.CalledProcessError:
+            scanned = ["Error scanning networks"]
+
+    # ---- Read existing saved networks ----
+    networks = []
+    if os.path.exists(WPA_CONF):
+        with open(WPA_CONF) as f:
+            content = f.read()
+        for block in re.findall(r'network=\{([^}]+)\}', content, re.DOTALL):
+            ssid_match = re.search(r'ssid="([^"]+)"', block)
+            psk_match = re.search(r'psk="([^"]+)"', block)
+            if ssid_match:
+                ssid = ssid_match.group(1)
+                psk = psk_match.group(1) if psk_match else ""
+                networks.append((ssid, psk))
+
+    return render_template("wifi.html", networks=networks, scanned=scanned)
 
 @app.route("/restart_metar")
 def restart_metar():
