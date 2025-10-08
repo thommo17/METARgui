@@ -56,7 +56,7 @@ def dashboard():
 # ============================
 #   METAR CONFIG
 # ============================
-@app.route("/config", methods=["GET", "POST"])
+@app.route("/metar", methods=["GET", "POST"])
 def config():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
