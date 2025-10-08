@@ -3,22 +3,64 @@
 <head>
   <title>Wi-Fi Config</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <script>
+    function addNetwork(ssidValue = "") {
+      const container = document.getElementById("networks");
+      const index = container.children.length;
+      const div = document.createElement("div");
+      div.className = "row mb-2";
+      div.innerHTML = `
+        <div class="col">
+          <input class="form-control" name="ssid_${index}" placeholder="SSID" value="${ssidValue}">
+        </div>
+        <div class="col">
+          <input class="form-control" name="psk_${index}" placeholder="Password" type="password">
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">X</button>
+        </div>
+      `;
+      container.appendChild(div);
+    }
+  </script>
 </head>
-<body>
-<div class="container mt-4">
-  <h3>Wi-Fi Config</h3>
+<body class="p-4">
+  <h3>Wi-Fi Networks</h3>
+
   <form method="post">
-    <div class="mb-3">
-      <label class="form-label">SSID</label>
-      <input class="form-control" type="text" name="ssid" required>
+    <div id="networks">
+      {% for ssid, psk in networks %}
+      <div class="row mb-2">
+        <div class="col"><input class="form-control" name="ssid_{{ loop.index0 }}" value="{{ ssid }}" placeholder="SSID"></div>
+        <div class="col"><input class="form-control" name="psk_{{ loop.index0 }}" value="{{ psk }}" placeholder="Password" type="password"></div>
+        <div class="col-auto"><button type="button" class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div>
+      </div>
+      {% endfor %}
     </div>
-    <div class="mb-3">
-      <label class="form-label">Password</label>
-      <input class="form-control" type="password" name="psk" required>
+
+    <button type="button" class="btn btn-secondary" onclick="addNetwork()">+ Add Network</button>
+    <hr>
+
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-primary" name="save">💾 Save</button>
+      <button class="btn btn-outline-info" name="scan">🔍 Scan Networks</button>
+      <a class="btn btn-secondary" href="/dashboard">Back</a>
     </div>
-    <button class="btn btn-success">Save</button>
-    <a class="btn btn-secondary" href="/dashboard">Back</a>
   </form>
-</div>
+
+  {% if scanned %}
+  <hr>
+  <h5>Available Wi-Fi Networks:</h5>
+  <div class="list-group">
+    {% for ssid in scanned %}
+      {% if ssid == "Error scanning networks" %}
+        <div class="alert alert-danger">{{ ssid }}</div>
+      {% else %}
+        <button type="button" class="list-group-item list-group-item-action"
+          onclick="addNetwork('{{ ssid }}')">{{ ssid }}</button>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 </body>
 </html>

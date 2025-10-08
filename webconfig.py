@@ -47,38 +47,58 @@ def dashboard():
         return redirect(url_for("login"))
     return render_template("dashboard.html")
 
+# ============================
+#   METAR CONFIG (IMPROVED)
+# ============================
 @app.route("/metar", methods=["GET", "POST"])
 def metar():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
     if request.method == "POST":
-        settings = {k: v for k, v in request.form.items()}
-        save_conf(METAR_CONF, settings)
+        # Collect airports
+        airports = []
+        i = 0
+        while True:
+            code = request.form.get(f"airport_{i}")
+            led = request.form.get(f"led_{i}")
+            if code is None:
+                break
+            if code.strip():
+                airports.append(f"{code.strip()}={led.strip()}")
+            i += 1
+
+        # Collect other settings
+        others = request.form.get("other_settings", "").strip().splitlines()
+
+        with open(METAR_CONF, "w") as f:
+            for a in airports:
+                f.write(a + "\n")
+            f.write("\n")
+            for line in others:
+                f.write(line + "\n")
+
         return redirect(url_for("metar"))
 
-    settings = load_conf(METAR_CONF)
-    return render_template("metar.html", settings=settings)
+    # ---- Parse config file ----
+    airports = []
+    others = []
+    if os.path.exists(METAR_CONF):
+        with open(METAR_CONF) as f:
+            for line in f:
+                line = line.strip()
+                if re.match(r"^[A-Z]{4}=\d+$", line):
+                    code, led = line.split("=")
+                    airports.append((code, led))
+                elif line:
+                    others.append(line)
 
-@app.route("/wifi", methods=["GET", "POST"])
-def wifi():
-    if not session.get("logged_in"):
-        return redirect(url_for("login"))
+    return render_template("metar.html", airports=airports, others="\n".join(others))
 
-    if request.method == "POST":
-        ssid = request.form.get("ssid")
-        psk = request.form.get("psk")
-        with open(WPA_CONF, "w") as f:
-            f.write('ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n')
-            f.write('update_config=1\n')
-            f.write('country=AU\n\n')  # adjust country code
-            f.write("network={\n")
-            f.write(f'    ssid="{ssid}"\n')
-            f.write(f'    psk="{psk}"\n')
-            f.write("}\n")
-        return redirect(url_for("wifi"))
+# ============================
+#   WIFI CONFIG (IMPROVED)
+# ============================
 
-    return render_template("wifi.html")
 
 @app.route("/restart_metar")
 def restart_metar():

@@ -3,20 +3,43 @@
 <head>
   <title>METAR Config</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <script>
+    function addAirport() {
+      const container = document.getElementById("airport-list");
+      const index = container.children.length;
+      const div = document.createElement("div");
+      div.className = "row mb-2";
+      div.innerHTML = `
+        <div class="col"><input class="form-control" name="airport_${index}" placeholder="ICAO Code (e.g. YBBN)"></div>
+        <div class="col"><input class="form-control" name="led_${index}" placeholder="LED Number"></div>
+        <div class="col-auto"><button type="button" class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div>
+      `;
+      container.appendChild(div);
+    }
+  </script>
 </head>
-<body>
-<div class="container mt-4">
+<body class="p-4">
   <h3>METAR Config</h3>
   <form method="post">
-    {% for key, val in settings.items() %}
-      <div class="mb-3">
-        <label class="form-label">{{ key }}</label>
-        <input class="form-control" type="text" name="{{ key }}" value="{{ val }}">
+    <h5>Airports & LED Mapping</h5>
+    <div id="airport-list">
+      {% for code, led in airports %}
+      <div class="row mb-2">
+        <div class="col"><input class="form-control" name="airport_{{ loop.index0 }}" value="{{ code }}" placeholder="ICAO Code (e.g. YBBN)"></div>
+        <div class="col"><input class="form-control" name="led_{{ loop.index0 }}" value="{{ led }}" placeholder="LED Number"></div>
+        <div class="col-auto"><button type="button" class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div>
       </div>
-    {% endfor %}
+      {% endfor %}
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="addAirport()">+ Add Airport</button>
+
+    <hr>
+    <h5>Other Settings</h5>
+    <textarea class="form-control" name="other_settings" rows="6">{{ others }}</textarea>
+
+    <hr>
     <button class="btn btn-success">Save</button>
     <a class="btn btn-secondary" href="/dashboard">Back</a>
   </form>
-</div>
 </body>
 </html>
