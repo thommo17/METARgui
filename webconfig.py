@@ -166,9 +166,33 @@ def wifi():
 
 @app.route("/config/download")
 def download_config():
-    if not session.get("logged_in"):
-        return redirect(url_for("login"))
-    return send_file(METAR_CONF, as_attachment=True, download_name="rpi_metar.conf")
+    try:
+        conf_path = os.path.abspath(METAR_CONF)
+
+        if not os.path.exists(conf_path):
+            return f"File not found: {conf_path}", 404
+
+        print(f"Downloading file from: {conf_path}")
+
+        # Flask 1.x uses 'attachment_filename', Flask 2.x+ uses 'download_name'
+        send_file_kwargs = {
+            "as_attachment": True,
+        }
+
+        try:
+            # Try Flask 2.x keyword
+            send_file_kwargs["download_name"] = "rpi_metar.conf"
+            return send_file(conf_path, **send_file_kwargs)
+        except TypeError:
+            # Fallback to Flask 1.x keyword
+            send_file_kwargs.pop("download_name", None)
+            send_file_kwargs["attachment_filename"] = "rpi_metar.conf"
+            return send_file(conf_path, **send_file_kwargs)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Error sending file: {e}", 500
 
 @app.route("/config/upload", methods=["POST"])
 def upload_config():
@@ -200,4 +224,4 @@ def reboot():
 
 # ----------------- Run -----------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
