@@ -1,0 +1,7 @@
+flask
+os
+subprocess
+re
+configparser
+io
+shutil
