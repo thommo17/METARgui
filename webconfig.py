@@ -36,6 +36,48 @@ def save_conf(path, settings):
         for k, v in settings.items():
             f.write(f"{k}={v}\n")
 
+
+# ----------------- Redirect -----------------
+@app.before_request
+def captive_portal_redirect():
+    host = request.host.split(":")[0]
+
+    # Allow requests already aimed at the portal
+    if host == "10.0.0.1":
+        return None
+
+    # Allow known app paths
+    allowed_paths = (
+        "/",
+        "/wifi",
+        "/config",
+        "/save",
+        "/download",
+        "/dashboard",
+        "/reboot",
+        "/metar",
+        "/wifi",
+        "/restart_metar",
+        "/config/download",
+        "/static"
+    )
+
+    if request.path.startswith(allowed_paths):
+        return None
+
+    # Redirect all other traffic to portal root
+    return redirect("http://10.0.0.1:5000/", code=302)
+
+
+@app.route("/generate_204")
+@app.route("/gen_204")
+@app.route("/hotspot-detect.html")
+@app.route("/connecttest.txt")
+@app.route("/ncsi.txt")
+def captive_probe():
+    return redirect("http://10.0.0.1:5000/", code=302)
+
+
 # ----------------- Routes -----------------
 @app.route("/", methods=["GET", "POST"])
 def login():
