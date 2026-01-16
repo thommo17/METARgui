@@ -105,13 +105,20 @@ if [ -n "\${SSID}" ]; then
     exit 0
 fi
 
-FAILS=\$((FAILS + 1))
-echo "\${FAILS}" > "\${STATE_FILE}"
-
-if [ "\${FAILS}" -lt "\${MAX_FAILS}" ]; then
+if [ -n "$SSID" ]; then
+    echo "0" > "$STATE_FILE"
+    systemctl stop hostapd dnsmasq 2>/dev/null || true
     exit 0
 fi
 
+FAILS=$((FAILS + 1))
+echo "$FAILS" > "$STATE_FILE"
+
+if [ "$FAILS" -lt "$MAX_FAILS" ]; then
+    exit 0
+fi
+
+# Switch to AP mode
 systemctl stop wpa_supplicant 2>/dev/null || true
 cp /etc/dhcpcd.conf.ap /etc/dhcpcd.conf
 systemctl restart dhcpcd
